@@ -1,0 +1,2 @@
+question: What is the Gross Pay?
+answer: $3880

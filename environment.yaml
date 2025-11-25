@@ -18,3 +18,5 @@ dependencies:
       - matplotlib
       - pandas
       - pyarrow
+      - azure-ai-ml
+      - azure-identity

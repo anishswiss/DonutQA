@@ -20,3 +20,4 @@ dependencies:
       - pyarrow
       - azure-ai-ml
       - azure-identity
+      - azureml-inference-server-http

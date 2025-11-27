@@ -74,11 +74,13 @@ def run(raw_data):
             max_length=model.decoder.config.max_position_embeddings,
             pad_token_id=processor.tokenizer.pad_token_id,
             eos_token_id=processor.tokenizer.eos_token_id,
+            return_dict_in_generate=True,
             use_cache=True,
         )
         
         # Decode answer
-        sequence = processor.batch_decode(outputs.sequences)[0]
+        generated = outputs.sequences if hasattr(outputs, "sequences") else outputs
+        sequence = processor.batch_decode(generated)[0]
         answer = sequence.split("<s_answer>")[1].split("</s_answer>")[0] if "<s_answer>" in sequence else sequence
 
         return json.dumps({"answer": answer})

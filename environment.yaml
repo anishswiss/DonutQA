@@ -18,6 +18,9 @@ dependencies:
       - matplotlib
       - pandas
       - pyarrow
+      - pillow
+      - requests
+      - streamlit
       - azure-ai-ml
       - azure-identity
       - azureml-inference-server-http

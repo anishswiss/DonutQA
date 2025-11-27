@@ -87,7 +87,10 @@ def run(raw_data):
         sequence = processor.batch_decode(generated)[0]
         answer = sequence.split("<s_answer>")[1].split("</s_answer>")[0] if "<s_answer>" in sequence else sequence
 
-        return json.dumps({"answer": answer})
+        print(f"run(): Answer extracted: {answer}")
+        result = {"answer": answer}
+        print(f"run(): Returning result: {result}")
+        return result
 
     except Exception as e:
         error_msg = str(e)

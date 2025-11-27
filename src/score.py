@@ -50,7 +50,8 @@ def run(raw_data):
             data = json.loads(raw_data)
         else:
             data = raw_data
-            
+        print("run(): payload received")
+
         image_bytes = data.get("image")  # assume base64-encoded image
         question = data.get("question", "")
 
@@ -58,6 +59,7 @@ def run(raw_data):
         from PIL import Image
         import io, base64
         image = Image.open(io.BytesIO(base64.b64decode(image_bytes))).convert("RGB")
+        print("run(): image decoded")
 
         # Create prompt for DocVQA
         prompt = f"<s_docvqa><s_question>{question}</s_question><s_answer>"
@@ -66,6 +68,7 @@ def run(raw_data):
         device = "cuda" if torch.cuda.is_available() else "cpu"
         pixel_values = processor(image, return_tensors="pt").pixel_values.to(device)
         decoder_input_ids = processor.tokenizer(prompt, add_special_tokens=False, return_tensors="pt").input_ids.to(device)
+        print("run(): preprocessing complete")
 
         # Inference
         outputs = model.generate(
@@ -77,6 +80,7 @@ def run(raw_data):
             return_dict_in_generate=True,
             use_cache=True,
         )
+        print("run(): generation complete")
         
         # Decode answer
         generated = outputs.sequences if hasattr(outputs, "sequences") else outputs

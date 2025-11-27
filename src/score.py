@@ -10,7 +10,10 @@ def init():
     global model, processor
 
     # Azure ML sets AZUREML_MODEL_DIR to the model path
-    model_dir = os.environ.get("AZUREML_MODEL_DIR", "./")
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    model_path = os.path.join(repo_root, "donut_qa_model", "donutQA", "outputs", "donut-lora")
+    model_dir = os.environ.get("AZUREML_MODEL_DIR", model_path)
+    model_dir = os.path.join(model_dir, "outputs", "donut-lora")
     print(f"Loading model from: {model_dir}")
     
     # List files in model directory for debugging

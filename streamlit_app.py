@@ -7,16 +7,16 @@ import streamlit as st
 from PIL import Image
 
 
-st.set_page_config(page_title="Donut QA", page_icon="📄")
-st.title("Donut QA – Document Question Answering")
+st.set_page_config(page_title="Document QA", page_icon="📄")
+st.title("Document Question Answering")
 st.write(
-    "Upload a pay stub image, ask a question, and the app will call the Azure ML "
-    "endpoint that hosts your Donut model."
+    "Upload a document image, ask questions, and get answers using AI-powered "
+    "document understanding."
 )
 
 
 def encode_image(file_bytes: bytes) -> str:
-    """Normalize to JPEG (Donut expects RGB) and return base64 string."""
+    """Normalize to JPEG (RGB format) and return base64 string."""
     image = Image.open(io.BytesIO(file_bytes)).convert("RGB")
     buffer = io.BytesIO()
     image.save(buffer, format="JPEG", quality=95)
@@ -25,13 +25,13 @@ def encode_image(file_bytes: bytes) -> str:
 
 scoring_uri = st.text_input(
     "Endpoint scoring URI",
-    value=os.getenv("DONUT_ENDPOINT_URI", ""),
+    value=os.getenv("DOCUMENT_QA_ENDPOINT_URI", ""),
     placeholder="https://<endpoint>.<region>.inference.ml.azure.com/score",
 )
 
 endpoint_key = st.text_input(
     "Endpoint key",
-    value=os.getenv("DONUT_ENDPOINT_KEY", ""),
+    value=os.getenv("DOCUMENT_QA_ENDPOINT_KEY", ""),
     type="password",
     help="Use the primary or secondary key from the Azure ML endpoint.",
 )
@@ -54,7 +54,7 @@ else:
     )
     questions = [q.strip() for q in questions_text.split("\n") if q.strip()]
 
-uploaded_file = st.file_uploader("Document image", type=["png", "jpg", "jpeg"])
+uploaded_file = st.file_uploader("Upload document image", type=["png", "jpg", "jpeg"])
 
 col1, col2 = st.columns(2)
 with col1:

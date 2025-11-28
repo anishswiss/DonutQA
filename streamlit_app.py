@@ -80,23 +80,50 @@ if run_button:
             "Authorization": f"Bearer {endpoint_key}",
         }
 
-        with st.spinner("Querying Azure ML endpoint..."):
+        import time
+        start_time = time.time()
+        with st.spinner("Querying Azure ML endpoint (this may take 20-30 seconds)..."):
             try:
                 response = requests.post(
-                    scoring_uri, json=payload, headers=headers, timeout=60
+                    scoring_uri, json=payload, headers=headers, timeout=120
                 )
+                elapsed = time.time() - start_time
+                st.info(f"Request completed in {elapsed:.1f} seconds")
+                
                 response.raise_for_status()
-                answer = response.json().get("answer")
+                result = response.json()
+                answer = result.get("answer")
                 if answer:
-                    st.success(f"Answer: {answer}")
+                    st.success(f"**Answer:** {answer}")
                 else:
-                    st.warning(f"Endpoint response: {response.text}")
-            except requests.HTTPError as http_err:
+                    st.warning(f"Endpoint response: {result}")
+            except requests.Timeout:
+                elapsed = time.time() - start_time
                 st.error(
-                    f"Endpoint returned {response.status_code}: {response.text}"
+                    f"Request timed out after {elapsed:.1f} seconds. "
+                    "The backend may still be processing. "
+                    "Check Azure ML endpoint logs to see if the request completed."
                 )
+            except requests.HTTPError as http_err:
+                elapsed = time.time() - start_time
+                error_text = response.text if hasattr(response, 'text') else str(http_err)
+                status_code = response.status_code if hasattr(response, 'status_code') else 'Unknown'
+                
+                if status_code == 408:
+                    st.warning(
+                        f"⚠️ Gateway timeout (408) after {elapsed:.1f} seconds, but backend may have completed successfully.\n\n"
+                        f"**Check Azure ML logs** - if you see 'run(): Returning result' in the logs, "
+                        f"the model processed successfully but the response didn't reach Streamlit.\n\n"
+                        f"Error details: {error_text}"
+                    )
+                else:
+                    st.error(
+                        f"Endpoint returned {status_code} after {elapsed:.1f} seconds: {error_text}\n\n"
+                        f"Check Azure ML endpoint logs to see if the request reached the backend."
+                    )
             except requests.RequestException as req_err:
-                st.error(f"Request failed: {req_err}")
+                elapsed = time.time() - start_time
+                st.error(f"Request failed after {elapsed:.1f} seconds: {req_err}")
 
         with st.expander("Request payload (debug)"):
             st.json({"question": question, "image_bytes": len(encoded_image)})

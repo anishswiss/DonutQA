@@ -53,43 +53,65 @@ def run(raw_data):
         print("run(): payload received")
 
         image_bytes = data.get("image")  # assume base64-encoded image
-        question = data.get("question", "")
+        
+        # Support both single question (backward compatibility) and multiple questions
+        questions = data.get("questions", [])
+        if not questions:
+            # Fallback to single question format for backward compatibility
+            question = data.get("question", "")
+            if question:
+                questions = [question]
+        
+        if not questions:
+            return json.dumps({"error": "No questions provided"})
 
         # Convert base64 to PIL image
         from PIL import Image
         import io, base64
         image = Image.open(io.BytesIO(base64.b64decode(image_bytes))).convert("RGB")
-        print("run(): image decoded")
+        print(f"run(): image decoded, processing {len(questions)} question(s)")
 
-        # Create prompt for DocVQA
-        prompt = f"<s_docvqa><s_question>{question}</s_question><s_answer>"
-        
-        # Preprocess
+        # Preprocess image once (same for all questions)
         device = "cuda" if torch.cuda.is_available() else "cpu"
         pixel_values = processor(image, return_tensors="pt").pixel_values.to(device)
-        decoder_input_ids = processor.tokenizer(prompt, add_special_tokens=False, return_tensors="pt").input_ids.to(device)
-        print("run(): preprocessing complete")
+        print("run(): image preprocessing complete")
 
-        # Inference
-        outputs = model.generate(
-            pixel_values,
-            decoder_input_ids=decoder_input_ids,
-            max_length=model.decoder.config.max_position_embeddings,
-            pad_token_id=processor.tokenizer.pad_token_id,
-            eos_token_id=processor.tokenizer.eos_token_id,
-            return_dict_in_generate=True,
-            use_cache=True,
-        )
-        print("run(): generation complete")
+        # Process each question
+        answers = []
+        for i, question in enumerate(questions, 1):
+            print(f"run(): Processing question {i}/{len(questions)}: {question[:50]}...")
+            
+            # Create prompt for DocVQA
+            prompt = f"<s_docvqa><s_question>{question}</s_question><s_answer>"
+            decoder_input_ids = processor.tokenizer(prompt, add_special_tokens=False, return_tensors="pt").input_ids.to(device)
+
+            # Inference
+            outputs = model.generate(
+                pixel_values,
+                decoder_input_ids=decoder_input_ids,
+                max_length=model.decoder.config.max_position_embeddings,
+                pad_token_id=processor.tokenizer.pad_token_id,
+                eos_token_id=processor.tokenizer.eos_token_id,
+                return_dict_in_generate=True,
+                use_cache=True,
+            )
+            
+            # Decode answer
+            generated = outputs.sequences if hasattr(outputs, "sequences") else outputs
+            sequence = processor.batch_decode(generated)[0]
+            answer = sequence.split("<s_answer>")[1].split("</s_answer>")[0] if "<s_answer>" in sequence else sequence
+            answers.append(answer)
+            print(f"run(): Question {i} answer: {answer}")
+
+        print("run(): All questions processed")
         
-        # Decode answer
-        generated = outputs.sequences if hasattr(outputs, "sequences") else outputs
-        sequence = processor.batch_decode(generated)[0]
-        answer = sequence.split("<s_answer>")[1].split("</s_answer>")[0] if "<s_answer>" in sequence else sequence
-
-        print(f"run(): Answer extracted: {answer}")
-        result = {"answer": answer}
-        print(f"run(): Returning result: {result}")
+        # Return results - support both formats for backward compatibility
+        if len(answers) == 1:
+            result = {"answer": answers[0], "answers": answers}
+        else:
+            result = {"answers": answers}
+        
+        print(f"run(): Returning result with {len(answers)} answer(s)")
         return result
 
     except Exception as e:

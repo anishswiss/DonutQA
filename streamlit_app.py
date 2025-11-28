@@ -36,7 +36,24 @@ endpoint_key = st.text_input(
     help="Use the primary or secondary key from the Azure ML endpoint.",
 )
 
-question = st.text_input("Question", value="What is the net pay?")
+question_mode = st.radio(
+    "Question mode",
+    ["Single question", "Multiple questions"],
+    horizontal=True
+)
+
+if question_mode == "Single question":
+    question = st.text_input("Question", value="What is the net pay?")
+    questions = [question] if question else []
+else:
+    questions_text = st.text_area(
+        "Questions (one per line)",
+        value="What is the net pay?\nWhat is the gross pay?\nWhat is the employee name?",
+        height=150,
+        help="Enter one question per line. All questions will be processed together."
+    )
+    questions = [q.strip() for q in questions_text.split("\n") if q.strip()]
+
 uploaded_file = st.file_uploader("Document image", type=["png", "jpg", "jpeg"])
 
 col1, col2 = st.columns(2)
@@ -62,6 +79,8 @@ if run_button:
         st.error("Please provide the endpoint key.")
     elif not uploaded_file:
         st.error("Please upload an image.")
+    elif not questions:
+        st.error("Please provide at least one question.")
     else:
         if hasattr(uploaded_file, "getvalue"):
             image_bytes = uploaded_file.getvalue()
@@ -74,7 +93,7 @@ if run_button:
             st.error(f"Unable to read image: {exc}")
             st.stop()
 
-        payload = {"image": encoded_image, "question": question}
+        payload = {"image": encoded_image, "questions": questions}
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {endpoint_key}",
@@ -82,21 +101,37 @@ if run_button:
 
         import time
         start_time = time.time()
-        with st.spinner("Querying Azure ML endpoint (this may take 20-30 seconds)..."):
+        num_questions = len(questions)
+        spinner_text = f"Querying Azure ML endpoint with {num_questions} question{'s' if num_questions > 1 else ''} (this may take 20-30 seconds per question)..."
+        with st.spinner(spinner_text):
             try:
                 response = requests.post(
-                    scoring_uri, json=payload, headers=headers, timeout=120
+                    scoring_uri, json=payload, headers=headers, timeout=120 * num_questions
                 )
                 elapsed = time.time() - start_time
                 st.info(f"Request completed in {elapsed:.1f} seconds")
                 
                 response.raise_for_status()
                 result = response.json()
-                answer = result.get("answer")
-                if answer:
-                    st.success(f"**Answer:** {answer}")
+                answers = result.get("answers", [])
+                
+                if answers:
+                    if len(answers) == 1:
+                        st.success(f"**Answer:** {answers[0]}")
+                    else:
+                        st.success("**Answers:**")
+                        for i, (q, a) in enumerate(zip(questions, answers), 1):
+                            st.write(f"**Q{i}:** {q}")
+                            st.write(f"**A{i}:** {a}")
+                            if i < len(answers):
+                                st.divider()
                 else:
-                    st.warning(f"Endpoint response: {result}")
+                    # Fallback for single answer format (backward compatibility)
+                    answer = result.get("answer")
+                    if answer:
+                        st.success(f"**Answer:** {answer}")
+                    else:
+                        st.warning(f"Endpoint response: {result}")
             except requests.Timeout:
                 elapsed = time.time() - start_time
                 st.error(
@@ -126,7 +161,7 @@ if run_button:
                 st.error(f"Request failed after {elapsed:.1f} seconds: {req_err}")
 
         with st.expander("Request payload (debug)"):
-            st.json({"question": question, "image_bytes": len(encoded_image)})
+            st.json({"questions": questions, "num_questions": len(questions), "image_bytes": len(encoded_image)})
 
         if uploaded_file:
             st.image(image_bytes, caption=uploaded_file.name, use_column_width=True)

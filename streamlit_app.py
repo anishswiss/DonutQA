@@ -23,18 +23,31 @@ def encode_image(file_bytes: bytes) -> str:
     return base64.b64encode(buffer.getvalue()).decode("utf-8")
 
 
-scoring_uri = st.text_input(
-    "Endpoint scoring URI",
-    value=os.getenv("DOCUMENT_QA_ENDPOINT_URI", ""),
-    placeholder="https://<endpoint>.<region>.inference.ml.azure.com/score",
+# Document type configuration
+# Endpoints are stored as environment variables: DOCUMENT_TYPE_ENDPOINT_URI and DOCUMENT_TYPE_ENDPOINT_KEY
+# Example: PAYSTUB_ENDPOINT_URI, PAYSTUB_ENDPOINT_KEY, W2_ENDPOINT_URI, W2_ENDPOINT_KEY
+DOCUMENT_TYPES = {
+    "Paystub": {
+        "uri_env": "PAYSTUB_ENDPOINT_URI",
+        "key_env": "PAYSTUB_ENDPOINT_KEY",
+    },
+    "W2": {
+        "uri_env": "W2_ENDPOINT_URI",
+        "key_env": "W2_ENDPOINT_KEY",
+    },
+}
+
+# Add document type selector
+document_type = st.selectbox(
+    "Select document type",
+    options=list(DOCUMENT_TYPES.keys()),
+    help="Choose the type of document you want to analyze."
 )
 
-endpoint_key = st.text_input(
-    "Endpoint key",
-    value=os.getenv("DOCUMENT_QA_ENDPOINT_KEY", ""),
-    type="password",
-    help="Use the primary or secondary key from the Azure ML endpoint.",
-)
+# Get endpoint configuration for selected document type
+doc_config = DOCUMENT_TYPES[document_type]
+scoring_uri = os.getenv(doc_config["uri_env"], "")
+endpoint_key = os.getenv(doc_config["key_env"], "")
 
 question_mode = st.radio(
     "Question mode",
@@ -60,23 +73,23 @@ col1, col2 = st.columns(2)
 with col1:
     run_button = st.button("Get answer", type="primary")
 with col2:
-    use_sample = st.button("Use sample pay stub")
+    use_sample = st.button(f"Use sample {document_type.lower()}")
 
 if use_sample:
-    sample_path = os.path.join("test_pay_stub.jpg")
+    sample_path = os.path.join(f"test_{document_type.lower()}.jpg")
     try:
         with open(sample_path, "rb") as sample_file:
             uploaded_file = io.BytesIO(sample_file.read())
             uploaded_file.name = os.path.basename(sample_path)
-        st.success("Loaded bundled sample pay stub.")
+        st.success(f"Loaded bundled sample {document_type.lower()}.")
     except FileNotFoundError:
-        st.error("Sample pay stub not found in project root.")
+        st.error(f"Sample {document_type.lower()} not found in project root.")
 
 if run_button:
     if not scoring_uri:
-        st.error("Please provide the endpoint scoring URI.")
+        st.error(f"Endpoint URI not configured for {document_type}. Please set {doc_config['uri_env']} environment variable.")
     elif not endpoint_key:
-        st.error("Please provide the endpoint key.")
+        st.error(f"Endpoint key not configured for {document_type}. Please set {doc_config['key_env']} environment variable.")
     elif not uploaded_file:
         st.error("Please upload an image.")
     elif not questions:
